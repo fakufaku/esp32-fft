@@ -20,8 +20,10 @@
 /* Can run 'make menuconfig' to choose the GPIO to blink,
    or you can edit the following line and set a number here.
 */
-#define REP 20
+#define REP 100
 #define NFFT 2048
+
+#define GPIO_OUTPUT 27
 
 double start, end;
 
@@ -31,6 +33,20 @@ timer_config_t timer_config = {
   .counter_dir = TIMER_COUNT_UP,
   .divider = 80   /* 1 us per tick */
 };
+
+gpio_config_t gpio_conf = {
+  // disable interrupt
+  .intr_type = GPIO_PIN_INTR_DISABLE,
+  //set as output mode
+  .mode = GPIO_MODE_OUTPUT,
+  //bit mask of the pins that you want to set,e.g.GPIO18/19
+  .pin_bit_mask = (1 << GPIO_OUTPUT),
+  //disable pull-down mode
+  .pull_down_en = 0,
+  //disable pull-up mode
+  .pull_up_en = 0
+};
+
 
 void clock_init()
 {
@@ -68,21 +84,37 @@ void fft_test_task()
 
   // Now measure execution time
   timer_get_counter_time_sec(TIMER_GROUP_0, TIMER_0, &start);
+  gpio_set_level(GPIO_OUTPUT, 1);
   for (k = 0 ; k < REP ; k++)
     fft_execute(fft_analysis);
+  gpio_set_level(GPIO_OUTPUT, 0);
   timer_get_counter_time_sec(TIMER_GROUP_0, TIMER_0, &end);
   printf(" Real FFT size=%d runtime=%f ms\n", NFFT, 1000 * (end - start) / REP);
 
+  vTaskDelay(10 / portTICK_RATE_MS);
+
   timer_get_counter_time_sec(TIMER_GROUP_0, TIMER_0, &start);
+  gpio_set_level(GPIO_OUTPUT, 1);
   for (k = 0 ; k < REP ; k++)
     fft_execute(fft_synthesis);
+  gpio_set_level(GPIO_OUTPUT, 0);
   timer_get_counter_time_sec(TIMER_GROUP_0, TIMER_0, &end);
   printf("Real iFFT size=%d runtime=%f ms\n", NFFT, 1000 * (end - start) / REP);
+
+  fft_destroy(fft_analysis);
+  fft_destroy(fft_synthesis);
 }
 
 void app_main()
 {
+  gpio_config(&gpio_conf);
+  gpio_set_level(GPIO_OUTPUT, 0);
+
   clock_init();
-  fft_test_task();
-  //xTaskCreate(&fft_test_task, "fft_test_task", configMINIMAL_STACK_SIZE, NULL, 5, NULL);
+
+  while (1)
+  {
+    fft_test_task();
+    vTaskDelay(1000 / portTICK_RATE_MS);
+  }
 }
