@@ -71,6 +71,9 @@ void ifft(float *input, float *output, float *twiddle_factors, int n);
 void rfft(float *x, float *y, float *twiddle_factors, int n);
 void irfft(float *x, float *y, float *twiddle_factors, int n);
 void fft_primitive(float *x, float *y, int n, int stride, float *twiddle_factors, int tw_stride);
+void split_radix_fft(float *x, float *y, int n, int stride, float *twiddle_factors, int tw_stride);
 void ifft_primitive(float *input, float *output, int n, int stride, float *twiddle_factors, int tw_stride);
+void fft8(float *input, int stride_in, float *output, int stride_out);
+void fft4(float *input, int stride_in, float *output, int stride_out);
 
 #endif // __FFT_H__

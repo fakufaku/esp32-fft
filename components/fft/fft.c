@@ -37,10 +37,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include <complex.h>
 
 #include "fft.h"
 
 #define TWO_PI 6.28318530
+#define USE_SPLIT_RADIX 1
 
 fft_config_t *fft_init(int size, fft_type_t type, fft_direction_t direction, float *input, float *output)
 {
@@ -151,7 +153,11 @@ void fft(float *input, float *output, float *twiddle_factors, int n)
    *    The FFT size, should be a power of 2
    */
 
+#if USE_SPLIT_RADIX
+  split_radix_fft(input, output, n, 2, twiddle_factors, 2);
+#else
   fft_primitive(input, output, n, 2, twiddle_factors, 2);
+#endif
 }
 
 void ifft(float *input, float *output, float *twiddle_factors, int n)
@@ -178,7 +184,11 @@ void rfft(float *x, float *y, float *twiddle_factors, int n)
 {
 
   // This code uses the two-for-the-price-of-one strategy
+#if USE_SPLIT_RADIX
+  split_radix_fft(x, y, n / 2, 2, twiddle_factors, 4);
+#else
   fft_primitive(x, y, n / 2, 2, twiddle_factors, 4);
+#endif
 
   // Now apply post processing to recover positive
   // frequencies of the real FFT
@@ -291,8 +301,10 @@ void fft_primitive(float *x, float *y, int n, int stride, float *twiddle_factors
    *    The number of elements to skip between two successive twiddle factors
    */
   int k;
+  float t;
 
   // End condition, stop at n=2 to avoid one trivial recursion
+  /*
   if (n == 2)
   {
     y[0] = x[0] + x[stride];
@@ -301,13 +313,29 @@ void fft_primitive(float *x, float *y, int n, int stride, float *twiddle_factors
     y[3] = x[1] - x[stride + 1];
     return;
   }
+  */
+  if (n == 8)
+  {
+    fft8(x, stride, y, 2);
+    return;
+  }
 
   // Recursion -- Decimation In Time algorithm
   fft_primitive(x, y, n / 2, 2 * stride, twiddle_factors, 2 * tw_stride);             // even half
   fft_primitive(x + stride, y+n, n / 2, 2 * stride, twiddle_factors, 2 * tw_stride);  // odd half
 
   // Stitch back together
-  for (k = 0 ; k < n / 2 ; k++)
+
+  // We can a few multiplications in the first step
+  t = y[0];
+  y[0] = t + y[n];
+  y[n] = t - y[n];
+
+  t = y[1];
+  y[1] = t + y[n+1];
+  y[n+1] = t - y[n+1];
+
+  for (k = 1 ; k < n / 2 ; k++)
   {
     float x1r, x1i, x2r, x2i, c, s;
     c = twiddle_factors[k * tw_stride];
@@ -327,10 +355,129 @@ void fft_primitive(float *x, float *y, int n, int stride, float *twiddle_factors
 
 }
 
+void split_radix_fft(float *x, float *y, int n, int stride, float *twiddle_factors, int tw_stride)
+{
+  /*
+   * This code will compute the FFT of the input vector x
+   *
+   * The input data is assumed to be real/imag interleaved
+   *
+   * The size n should be a power of two
+   *
+   * y is an output buffer of size 2n to accomodate for complex numbers
+   *
+   * Forward fast Fourier transform
+   * Split-Radix
+   * DIT, radix-2, out-of-place implementation
+   *
+   * For a complex FFT, call first stage as:
+   * fft(x, y, n, 2, 2);
+   *
+   * Parameters
+   * ----------
+   *  x (float *)
+   *    The input array containing the complex samples with
+   *    real/imaginary parts interleaved [Re(x0), Im(x0), ..., Re(x_n-1), Im(x_n-1)]
+   *  y (float *)
+   *    The output array containing the complex samples with
+   *    real/imaginary parts interleaved [Re(x0), Im(x0), ..., Re(x_n-1), Im(x_n-1)]
+   *  n (int)
+   *    The FFT size, should be a power of 2
+   *  stride (int)
+   *    The number of elements to skip between two successive samples
+   *  twiddle_factors (float *)
+   *    The array of twiddle factors
+   *  tw_stride (int)
+   *    The number of elements to skip between two successive twiddle factors
+   */
+  int k;
+
+  // End condition, stop at n=2 to avoid one trivial recursion
+  if (n == 8)
+  {
+    fft8(x, stride, y, 2);
+    return;
+  }
+  else if (n == 4)
+  {
+    fft4(x, stride, y, 2);
+    return;
+  }
+
+  // Recursion -- Decimation In Time algorithm
+  split_radix_fft(x, y, n / 2, 2 * stride, twiddle_factors, 2 * tw_stride);
+  split_radix_fft(x + stride, y + n, n / 4, 4 * stride, twiddle_factors, 4 * tw_stride);
+  split_radix_fft(x + 3 * stride, y + n + n / 2, n / 4, 4 * stride, twiddle_factors, 4 * tw_stride);
+
+  // Stitch together the output
+  float u1r, u1i, u2r, u2i, x1r, x1i, x2r, x2i;
+
+  u1r = y[0];
+  u1i = y[1];
+  u2r = y[n / 2];
+  u2i = y[n / 2 + 1];
+
+  x1r = y[n];
+  x1i = y[n + 1];
+  x2r = y[n / 2 + n];
+  x2i = y[n / 2 + n + 1];
+
+  y[0] = u1r + x1r + x2r;
+
+  y[1] = u1i + x1i + x2i;
+
+  y[n]     = u1r - x1r - x2r;
+  y[n + 1] = u1i - x1i - x2i;
+
+  y[n / 2]     = u2r - (x2i - x1i);
+  y[n / 2 + 1] = u2i - (x1r - x2r);
+
+  y[n + n / 2]     = u2r + (x2i - x1i);
+  y[n + n / 2 + 1] = u2i + (x1r - x2r);
+
+  // We can a few multiplications in the first step
+  for (k = 1 ; k < n / 4 ; k++)
+  {
+    float u1r, u1i, u2r, u2i, x1r, x1i, x2r, x2i, c1, s1, c2, s2;
+    c1 = twiddle_factors[k * tw_stride];
+    s1 = twiddle_factors[k * tw_stride + 1];
+    c2 = twiddle_factors[3 * k * tw_stride];
+    s2 = twiddle_factors[3 * k * tw_stride + 1];
+
+    u1r = y[2 * k];
+    u1i = y[2 * k + 1];
+    u2r = y[2 * k + n / 2];
+    u2i = y[2 * k + n / 2 + 1];
+
+    x1r =  c1 * y[n + 2 * k] + s1 * y[n + 2 * k + 1];
+    x1i = -s1 * y[n + 2 * k] + c1 * y[n + 2 * k + 1];
+    x2r =  c2 * y[n / 2 + n + 2 * k] + s2 * y[n / 2 + n + 2 * k + 1];
+    x2i = -s2 * y[n / 2 + n + 2 * k] + c2 * y[n / 2 + n + 2 * k + 1];
+
+    y[2 * k]     = u1r + x1r + x2r;
+    y[2 * k + 1] = u1i + x1i + x2i;
+
+    y[2 * k + n]     = u1r - x1r - x2r;
+    y[2 * k + n + 1] = u1i - x1i - x2i;
+
+    y[2 * k + n / 2]     = u2r - (x2i - x1i);
+    y[2 * k + n / 2 + 1] = u2i - (x1r - x2r);
+
+    y[2 * k + n + n / 2]     = u2r + (x2i - x1i);
+    y[2 * k + n + n / 2 + 1] = u2i + (x1r - x2r);
+  }
+
+}
+
+
 void ifft_primitive(float *input, float *output, int n, int stride, float *twiddle_factors, int tw_stride)
 {
 
+#if USE_SPLIT_RADIX
+  split_radix_fft(input, output, n, stride, twiddle_factors, tw_stride);
+#else
   fft_primitive(input, output, n, stride, twiddle_factors, tw_stride);
+#endif
 
   int ks;
 
@@ -339,15 +486,15 @@ void ifft_primitive(float *input, float *output, int n, int stride, float *twidd
   // reverse all coefficients from 1 to n / 2 - 1
   for (ks = stride ; ks < ns / 2 ; ks += stride)
   {
-    float tr, ti;
-    tr = output[ks];
-    ti = output[ks+1];
+    float t;
 
+    t = output[ks];
     output[ks] = output[ns-ks];
-    output[ks+1] = output[ns-ks+1];
+    output[ns-ks] = t;
 
-    output[ns-ks] = tr;
-    output[ns-ks+1] = ti;
+    t = output[ks+1];
+    output[ks+1] = output[ns-ks+1];
+    output[ns-ks+1] = t;
   }
 
   // Apply normalization
@@ -360,3 +507,182 @@ void ifft_primitive(float *input, float *output, int n, int stride, float *twidd
 
 }
 
+void fft8(float *input, int stride_in, float *output, int stride_out)
+{
+  /*
+   * Unrolled implementation of FFT8 for a little more performance
+   */
+  float a0r, a1r, a2r, a3r, a4r, a5r, a6r, a7r;
+  float a0i, a1i, a2i, a3i, a4i, a5i, a6i, a7i;
+  float b0r, b1r, b2r, b3r, b4r, b5r, b6r, b7r;
+  float b0i, b1i, b2i, b3i, b4i, b5i, b6i, b7i;
+  float t;
+  float sin_pi_4 = 0.7071067812;
+
+  a0r = input[0];
+  a0i = input[1];
+  a1r = input[stride_in];
+  a1i = input[stride_in+1];
+  a2r = input[2*stride_in];
+  a2i = input[2*stride_in+1];
+  a3r = input[3*stride_in];
+  a3i = input[3*stride_in+1];
+  a4r = input[4*stride_in];
+  a4i = input[4*stride_in+1];
+  a5r = input[5*stride_in];
+  a5i = input[5*stride_in+1];
+  a6r = input[6*stride_in];
+  a6i = input[6*stride_in+1];
+  a7r = input[7*stride_in];
+  a7i = input[7*stride_in+1];
+
+  // Stage 1
+
+  b0r = a0r + a4r;
+  b0i = a0i + a4i;
+
+  b1r = a1r + a5r;
+  b1i = a1i + a5i;
+
+  b2r = a2r + a6r;
+  b2i = a2i + a6i;
+
+  b3r = a3r + a7r;
+  b3i = a3i + a7i;
+
+  b4r = a0r - a4r;
+  b4i = a0i - a4i;
+
+  b5r = a1r - a5r;
+  b5i = a1i - a5i;
+  // W_8^1 = 1/sqrt(2) - j / sqrt(2)
+  t = b5r + b5i;
+  b5i = (b5i - b5r) * sin_pi_4;
+  b5r = t * sin_pi_4;
+
+  // W_8^2 = -j
+  b6r = a2i - a6i;
+  b6i = a6r - a2r;
+
+  b7r = a3r - a7r;
+  b7i = a3i - a7i;
+  // W_8^3 = -1 / sqrt(2) + j / sqrt(2)
+  t = sin_pi_4 * (b7i - b7r);
+  b7i = - (b7r + b7i) * sin_pi_4;
+  b7r = t;
+
+  // Stage 2
+
+  a0r = b0r + b2r;
+  a0i = b0i + b2i;
+
+  a1r = b1r + b3r;
+  a1i = b1i + b3i;
+
+  a2r = b0r - b2r;
+  a2i = b0i - b2i;
+
+  // * j
+  a3r = b1i - b3i;
+  a3i = b3r - b1r;
+
+  a4r = b4r + b6r;
+  a4i = b4i + b6i;
+
+  a5r = b5r + b7r;
+  a5i = b5i + b7i;
+
+  a6r = b4r - b6r;
+  a6i = b4i - b6i;
+
+  // * j
+  a7r = b5i - b7i;
+  a7i = b7r - b5r;
+
+  // Stage 3
+
+  // X[0]
+  output[0] = a0r + a1r;
+  output[1] = a0i + a1i;
+
+  // X[4]
+  output[4*stride_out] = a0r - a1r;
+  output[4*stride_out+1] = a0i - a1i;
+
+  // X[2]
+  output[2*stride_out] = a2r + a3r;
+  output[2*stride_out+1] = a2i + a3i;
+
+  // X[6]
+  output[6*stride_out] = a2r - a3r;
+  output[6*stride_out+1] = a2i - a3i;
+
+  // X[1]
+  output[stride_out] = a4r + a5r;
+  output[stride_out+1] = a4i + a5i;
+
+  // X[5]
+  output[5*stride_out] = a4r - a5r;
+  output[5*stride_out+1] = a4i - a5i;
+
+  // X[3]
+  output[3*stride_out] = a6r + a7r;
+  output[3*stride_out+1] = a6i + a7i;
+
+  // X[7]
+  output[7*stride_out] = a6r - a7r;
+  output[7*stride_out+1] = a6i - a7i;
+
+}
+
+void fft4(float *input, int stride_in, float *output, int stride_out)
+{
+  /*
+   * Unrolled implementation of FFT4 for a little more performance
+   */
+  float a0r, a1r, a2r, a3r;
+  float a0i, a1i, a2i, a3i;
+
+  a0r = input[0];
+  a0i = input[1];
+  a1r = input[stride_in];
+  a1i = input[stride_in+1];
+  a2r = input[2*stride_in];
+  a2i = input[2*stride_in+1];
+  a3r = input[3*stride_in];
+  a3i = input[3*stride_in+1];
+
+  // Stage 1
+
+  a0r = input[0] + input[2*stride_in];
+  a0i = input[1] + input[2*stride_in+1];
+
+  a1r = input[stride_in] + input[3*stride_in];
+  a1i = input[stride_in+1] + input[3*stride_in+1];
+
+  a2r = input[0] - input[2*stride_in];
+  a2i = input[1] - input[2*stride_in+1];
+
+  // * j
+  a3r = input[stride_in+1] - input[3*stride_in+1];
+  a3i = input[3*stride_in] - input[stride_in];
+
+  // Stage 2
+
+  // X[0]
+  output[0] = a0r + a1r;
+  output[1] = a0i + a1i;
+
+  // X[2]
+  output[2*stride_out] = a0r - a1r;
+  output[2*stride_out+1] = a0i - a1i;
+
+  // X[1]
+  output[stride_out] = a2r + a3r;
+  output[stride_out+1] = a2i + a3i;
+
+  // X[3]
+  output[3*stride_out] = a2r - a3r;
+  output[3*stride_out+1] = a2i - a3i;
+
+}
