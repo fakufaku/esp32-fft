@@ -411,7 +411,9 @@ void split_radix_fft(float *x, float *y, int n, int stride, float *twiddle_facto
 
   // Stitch together the output
   float u1r, u1i, u2r, u2i, x1r, x1i, x2r, x2i;
+  float t;
 
+  // We can save a few multiplications in the first step
   u1r = y[0];
   u1i = y[1];
   u2r = y[n / 2];
@@ -422,20 +424,22 @@ void split_radix_fft(float *x, float *y, int n, int stride, float *twiddle_facto
   x2r = y[n / 2 + n];
   x2i = y[n / 2 + n + 1];
 
-  y[0] = u1r + x1r + x2r;
+  t = x1r + x2r;
+  y[0] = u1r + t;
+  y[n]     = u1r - t;
 
-  y[1] = u1i + x1i + x2i;
+  t = x1i + x2i;
+  y[1] = u1i + t;
+  y[n + 1] = u1i - t;
 
-  y[n]     = u1r - x1r - x2r;
-  y[n + 1] = u1i - x1i - x2i;
+  t = x2i - x1i;
+  y[n / 2]     = u2r - t;
+  y[n + n / 2]     = u2r + t;
 
-  y[n / 2]     = u2r - (x2i - x1i);
-  y[n / 2 + 1] = u2i - (x1r - x2r);
+  t = x1r - x2r;
+  y[n / 2 + 1] = u2i - t;
+  y[n + n / 2 + 1] = u2i + t;
 
-  y[n + n / 2]     = u2r + (x2i - x1i);
-  y[n + n / 2 + 1] = u2i + (x1r - x2r);
-
-  // We can a few multiplications in the first step
   for (k = 1 ; k < n / 4 ; k++)
   {
     float u1r, u1i, u2r, u2i, x1r, x1i, x2r, x2i, c1, s1, c2, s2;
@@ -454,17 +458,21 @@ void split_radix_fft(float *x, float *y, int n, int stride, float *twiddle_facto
     x2r =  c2 * y[n / 2 + n + 2 * k] + s2 * y[n / 2 + n + 2 * k + 1];
     x2i = -s2 * y[n / 2 + n + 2 * k] + c2 * y[n / 2 + n + 2 * k + 1];
 
-    y[2 * k]     = u1r + x1r + x2r;
-    y[2 * k + 1] = u1i + x1i + x2i;
+    t = x1r + x2r;
+    y[2 * k]     = u1r + t;
+    y[2 * k + n]     = u1r - t;
 
-    y[2 * k + n]     = u1r - x1r - x2r;
-    y[2 * k + n + 1] = u1i - x1i - x2i;
+    t = x1i + x2i;
+    y[2 * k + 1] = u1i + t;
+    y[2 * k + n + 1] = u1i - t;
 
-    y[2 * k + n / 2]     = u2r - (x2i - x1i);
-    y[2 * k + n / 2 + 1] = u2i - (x1r - x2r);
+    t = x2i - x1i;
+    y[2 * k + n / 2]     = u2r - t;
+    y[2 * k + n + n / 2]     = u2r + t;
 
-    y[2 * k + n + n / 2]     = u2r + (x2i - x1i);
-    y[2 * k + n + n / 2 + 1] = u2i + (x1r - x2r);
+    t = x1r - x2r;
+    y[2 * k + n / 2 + 1] = u2i - t;
+    y[2 * k + n + n / 2 + 1] = u2i + t;
   }
 
 }
@@ -640,49 +648,25 @@ void fft4(float *input, int stride_in, float *output, int stride_out)
   /*
    * Unrolled implementation of FFT4 for a little more performance
    */
-  float a0r, a1r, a2r, a3r;
-  float a0i, a1i, a2i, a3i;
+  float t1, t2;
 
-  a0r = input[0];
-  a0i = input[1];
-  a1r = input[stride_in];
-  a1i = input[stride_in+1];
-  a2r = input[2*stride_in];
-  a2i = input[2*stride_in+1];
-  a3r = input[3*stride_in];
-  a3i = input[3*stride_in+1];
+  t1 = input[0] + input[2*stride_in];
+  t2 = input[stride_in] + input[3*stride_in];
+  output[0] = t1 + t2;
+  output[2*stride_out] = t1 - t2;
 
-  // Stage 1
+  t1 = input[1] + input[2*stride_in+1];
+  t2 = input[stride_in+1] + input[3*stride_in+1];
+  output[1] = t1 + t2;
+  output[2*stride_out+1] = t1 - t2;
 
-  a0r = input[0] + input[2*stride_in];
-  a0i = input[1] + input[2*stride_in+1];
+  t1 = input[0] - input[2*stride_in];
+  t2 = input[stride_in+1] - input[3*stride_in+1];
+  output[stride_out] = t1 + t2;
+  output[3*stride_out] = t1 - t2;
 
-  a1r = input[stride_in] + input[3*stride_in];
-  a1i = input[stride_in+1] + input[3*stride_in+1];
-
-  a2r = input[0] - input[2*stride_in];
-  a2i = input[1] - input[2*stride_in+1];
-
-  // * j
-  a3r = input[stride_in+1] - input[3*stride_in+1];
-  a3i = input[3*stride_in] - input[stride_in];
-
-  // Stage 2
-
-  // X[0]
-  output[0] = a0r + a1r;
-  output[1] = a0i + a1i;
-
-  // X[2]
-  output[2*stride_out] = a0r - a1r;
-  output[2*stride_out+1] = a0i - a1i;
-
-  // X[1]
-  output[stride_out] = a2r + a3r;
-  output[stride_out+1] = a2i + a3i;
-
-  // X[3]
-  output[3*stride_out] = a2r - a3r;
-  output[3*stride_out+1] = a2i - a3i;
-
+  t1 = input[1] - input[2*stride_in+1];
+  t2 = input[3*stride_in] - input[stride_in];
+  output[stride_out+1] = t1 + t2;
+  output[3*stride_out+1] = t1 - t2;
 }
