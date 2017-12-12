@@ -1,0 +1,113 @@
+algorithm,type,direction,size,runtime [ms]
+radix-2,Complex,FFT,64,0.071550
+radix-2,Complex,iFFT,64,0.087510
+radix-2,Complex,FFT,128,0.164480
+radix-2,Complex,iFFT,128,0.193350
+radix-2,Complex,FFT,256,0.373940
+radix-2,Complex,iFFT,256,0.428130
+radix-2,Complex,FFT,512,0.838710
+radix-2,Complex,iFFT,512,0.943210
+radix-2,Complex,FFT,1024,1.859330
+radix-2,Complex,iFFT,1024,2.064680
+radix-2,Complex,FFT,2048,4.082970
+radix-2,Complex,iFFT,2048,4.490060
+radix-2,Complex,FFT,4096,8.895520
+radix-2,Complex,iFFT,4096,9.706230
+radix-2,Real,FFT,64,0.037980
+radix-2,Real,iFFT,64,0.047800
+radix-2,Real,FFT,128,0.087430
+radix-2,Real,iFFT,128,0.103170
+radix-2,Real,FFT,256,0.197360
+radix-2,Real,iFFT,256,0.225090
+radix-2,Real,FFT,512,0.440110
+radix-2,Real,iFFT,512,0.491820
+radix-2,Real,FFT,1024,0.971210
+radix-2,Real,iFFT,1024,1.070960
+radix-2,Real,FFT,2048,2.124690
+radix-2,Real,iFFT,2048,2.320580
+radix-2,Real,FFT,4096,4.614210
+radix-2,Real,iFFT,4096,5.001990
+radix-2 large-base,Complex,FFT,64,0.050680
+radix-2 large-base,Complex,iFFT,64,0.067380
+radix-2 large-base,Complex,FFT,128,0.124200
+radix-2 large-base,Complex,iFFT,128,0.153780
+radix-2 large-base,Complex,FFT,256,0.293500
+radix-2 large-base,Complex,iFFT,256,0.349210
+radix-2 large-base,Complex,FFT,512,0.677610
+radix-2 large-base,Complex,iFFT,512,0.785430
+radix-2 large-base,Complex,FFT,1024,1.537340
+radix-2 large-base,Complex,iFFT,1024,1.749170
+radix-2 large-base,Complex,FFT,2048,3.439260
+radix-2 large-base,Complex,iFFT,2048,3.859080
+radix-2 large-base,Complex,FFT,4096,7.607700
+radix-2 large-base,Complex,iFFT,4096,8.444080
+radix-2 large-base,Real,FFT,64,0.027710
+radix-2 large-base,Real,iFFT,64,0.037480
+radix-2 large-base,Real,FFT,128,0.066990
+radix-2 large-base,Real,iFFT,128,0.083050
+radix-2 large-base,Real,FFT,256,0.156960
+radix-2 large-base,Real,iFFT,256,0.185450
+radix-2 large-base,Real,FFT,512,0.359510
+radix-2 large-base,Real,iFFT,512,0.412960
+radix-2 large-base,Real,FFT,1024,0.810180
+radix-2 large-base,Real,iFFT,1024,0.913200
+radix-2 large-base,Real,FFT,2048,1.802790
+radix-2 large-base,Real,iFFT,2048,2.004930
+radix-2 large-base,Real,FFT,4096,3.970300
+radix-2 large-base,Real,iFFT,4096,4.371150
+split-radix,Complex,FFT,64,0.064460
+split-radix,Complex,iFFT,64,0.081200
+split-radix,Complex,FFT,128,0.147280
+split-radix,Complex,iFFT,128,0.176860
+split-radix,Complex,FFT,256,0.332030
+split-radix,Complex,iFFT,256,0.387730
+split-radix,Complex,FFT,512,0.738540
+split-radix,Complex,iFFT,512,0.846330
+split-radix,Complex,FFT,1024,1.628480
+split-radix,Complex,iFFT,1024,1.840320
+split-radix,Complex,FFT,2048,3.558920
+split-radix,Complex,iFFT,2048,3.978830
+split-radix,Complex,FFT,4096,7.723840
+split-radix,Complex,iFFT,4096,8.560070
+split-radix,Real,FFT,64,0.035360
+split-radix,Real,iFFT,64,0.045250
+split-radix,Real,FFT,128,0.080810
+split-radix,Real,iFFT,128,0.096880
+split-radix,Real,FFT,256,0.180100
+split-radix,Real,iFFT,256,0.208590
+split-radix,Real,FFT,512,0.398130
+split-radix,Real,iFFT,512,0.451470
+split-radix,Real,FFT,1024,0.871140
+split-radix,Real,iFFT,1024,0.974060
+split-radix,Real,FFT,2048,1.893940
+split-radix,Real,iFFT,2048,2.096150
+split-radix,Real,FFT,4096,4.090060
+split-radix,Real,iFFT,4096,4.490880
+split-radix large-base,Complex,FFT,64,0.047070
+split-radix large-base,Complex,iFFT,64,0.063390
+split-radix large-base,Complex,FFT,128,0.111170
+split-radix large-base,Complex,iFFT,128,0.140820
+split-radix large-base,Complex,FFT,256,0.260740
+split-radix large-base,Complex,iFFT,256,0.316440
+split-radix large-base,Complex,FFT,512,0.595650
+split-radix large-base,Complex,iFFT,512,0.703430
+split-radix large-base,Complex,FFT,1024,1.342810
+split-radix large-base,Complex,iFFT,1024,1.554700
+split-radix large-base,Complex,FFT,2048,2.987360
+split-radix large-base,Complex,iFFT,2048,3.407310
+split-radix large-base,Complex,FFT,4096,6.581050
+split-radix large-base,Complex,iFFT,4096,7.417370
+split-radix large-base,Real,FFT,64,0.026230
+split-radix large-base,Real,iFFT,64,0.036000
+split-radix large-base,Real,FFT,128,0.062910
+split-radix large-base,Real,iFFT,128,0.078980
+split-radix large-base,Real,FFT,256,0.143980
+split-radix large-base,Real,iFFT,256,0.172490
+split-radix large-base,Real,FFT,512,0.326750
+split-radix large-base,Real,iFFT,512,0.380100
+split-radix large-base,Real,FFT,1024,0.728130
+split-radix large-base,Real,iFFT,1024,0.831150
+split-radix large-base,Real,FFT,2048,1.608290
+split-radix large-base,Real,iFFT,2048,1.810590
+split-radix large-base,Real,FFT,4096,3.518550
+split-radix large-base,Real,iFFT,4096,3.919390

@@ -21,7 +21,8 @@
    or you can edit the following line and set a number here.
 */
 #define REP 100
-#define NFFT 2048
+#define MIN_LOG_N 6
+#define MAX_LOG_N 12
 
 #define GPIO_OUTPUT 27
 
@@ -95,56 +96,119 @@ void fft8_test_task()
 
 void fft_test_task()
 {
-  int k;
+  int k, n;
 
-  fft_config_t *fft_analysis = fft_init(NFFT / 2, FFT_COMPLEX, FFT_FORWARD, NULL, NULL);
-  fft_config_t *fft_synthesis = fft_init(NFFT / 2, FFT_COMPLEX, FFT_BACKWARD, fft_analysis->output, NULL);
-
-  // Fill array with some dummy data
-  for (k = 0 ; k < fft_analysis->size ; k++)
+  for (n = MIN_LOG_N ; n <= MAX_LOG_N ; n++)
   {
-    fft_analysis->input[2*k] = (float)k / (float)fft_analysis->size;
-    fft_analysis->input[2*k+1] = (float)(k-1) / (float)fft_analysis->size;
-  }
+    int NFFT = 1 << n;
 
-  // Test accuracy
-  fft_execute(fft_analysis);
-  fft_execute(fft_synthesis);
+    // Create fft plan and let it allocate arrays
+    fft_config_t *fft_analysis = fft_init(NFFT, FFT_COMPLEX, FFT_FORWARD, NULL, NULL);
+    fft_config_t *fft_synthesis = fft_init(NFFT, FFT_COMPLEX, FFT_BACKWARD, fft_analysis->output, NULL);
 
-  int n_errors = 0;
-  for (k = 0 ; k < 2 * fft_analysis->size ; k++)
-    if (abs(fft_analysis->input[k] - fft_synthesis->output[k]) > 1e-5)
+    // Fill array with some dummy data
+    for (k = 0 ; k < fft_analysis->size ; k++)
     {
-      printf("bin=%d input=%.4f output=%.4f\n err=%f", 
-          k, fft_analysis->input[k], fft_synthesis->output[k], 
-          fabsf(fft_analysis->input[k] - fft_synthesis->output[k]));
-      n_errors++;
+      fft_analysis->input[2*k] = (float)k / (float)fft_analysis->size;
+      fft_analysis->input[2*k+1] = (float)(k-1) / (float)fft_analysis->size;
     }
-  if (n_errors == 0)
-    printf("Transform seems to work!\n");
 
-  // Now measure execution time
-  timer_get_counter_time_sec(TIMER_GROUP_0, TIMER_0, &start);
-  gpio_set_level(GPIO_OUTPUT, 1);
-  for (k = 0 ; k < REP ; k++)
+    // Test accuracy
     fft_execute(fft_analysis);
-  gpio_set_level(GPIO_OUTPUT, 0);
-  timer_get_counter_time_sec(TIMER_GROUP_0, TIMER_0, &end);
-  printf(" FFT size=%d runtime=%f ms\n", NFFT, 1000 * (end - start) / REP);
-
-  vTaskDelay(10 / portTICK_RATE_MS);
-
-  timer_get_counter_time_sec(TIMER_GROUP_0, TIMER_0, &start);
-  gpio_set_level(GPIO_OUTPUT, 1);
-  for (k = 0 ; k < REP ; k++)
     fft_execute(fft_synthesis);
-  gpio_set_level(GPIO_OUTPUT, 0);
-  timer_get_counter_time_sec(TIMER_GROUP_0, TIMER_0, &end);
-  printf("iFFT size=%d runtime=%f ms\n", NFFT, 1000 * (end - start) / REP);
 
-  fft_destroy(fft_analysis);
-  fft_destroy(fft_synthesis);
+    int n_errors = 0;
+    for (k = 0 ; k < 2 * fft_analysis->size ; k++)
+      if (abs(fft_analysis->input[k] - fft_synthesis->output[k]) > 1e-5)
+      {
+        printf("bin=%d input=%.4f output=%.4f\n err=%f", 
+            k, fft_analysis->input[k], fft_synthesis->output[k], 
+            fabsf(fft_analysis->input[k] - fft_synthesis->output[k]));
+        n_errors++;
+      }
+    if (n_errors == 0)
+      printf("Transform seems to work!\n");
+
+    // Now measure execution time
+    timer_get_counter_time_sec(TIMER_GROUP_0, TIMER_0, &start);
+    gpio_set_level(GPIO_OUTPUT, 1);
+    for (k = 0 ; k < REP ; k++)
+      fft_execute(fft_analysis);
+    gpio_set_level(GPIO_OUTPUT, 0);
+    timer_get_counter_time_sec(TIMER_GROUP_0, TIMER_0, &end);
+    printf(" FFT size=%d runtime=%f ms\n", NFFT, 1000 * (end - start) / REP);
+
+    vTaskDelay(10 / portTICK_RATE_MS);
+
+    timer_get_counter_time_sec(TIMER_GROUP_0, TIMER_0, &start);
+    gpio_set_level(GPIO_OUTPUT, 1);
+    for (k = 0 ; k < REP ; k++)
+      fft_execute(fft_synthesis);
+    gpio_set_level(GPIO_OUTPUT, 0);
+    timer_get_counter_time_sec(TIMER_GROUP_0, TIMER_0, &end);
+    printf("iFFT size=%d runtime=%f ms\n", NFFT, 1000 * (end - start) / REP);
+
+    fft_destroy(fft_analysis);
+    fft_destroy(fft_synthesis);
+  }
 }
+
+void rfft_test_task()
+{
+  int k, n;
+
+  for (n = MIN_LOG_N ; n <= MAX_LOG_N ; n++)
+  {
+    int NFFT = 1 << n;
+
+    // Create fft plan and let it allocate arrays
+    fft_config_t *fft_analysis = fft_init(NFFT, FFT_REAL, FFT_FORWARD, NULL, NULL);
+    fft_config_t *fft_synthesis = fft_init(NFFT, FFT_REAL, FFT_BACKWARD, fft_analysis->output, NULL);
+
+    // Fill array with some dummy data
+    for (k = 0 ; k < fft_analysis->size ; k++)
+      fft_analysis->input[k] = (float)k / (float)fft_analysis->size;
+
+    // Test accuracy
+    fft_execute(fft_analysis);
+    fft_execute(fft_synthesis);
+
+    int n_errors = 0;
+    for (k = 0 ; k < fft_analysis->size ; k++)
+      if (abs(fft_analysis->input[k] - fft_synthesis->output[k]) > 1e-5)
+      {
+        printf("bin=%d input=%.4f output=%.4f\n err=%f", 
+            k, fft_analysis->input[k], fft_synthesis->output[k], 
+            fabsf(fft_analysis->input[k] - fft_synthesis->output[k]));
+        n_errors++;
+      }
+    if (n_errors == 0)
+      printf("Transform seems to work!\n");
+
+    // Now measure execution time
+    timer_get_counter_time_sec(TIMER_GROUP_0, TIMER_0, &start);
+    gpio_set_level(GPIO_OUTPUT, 1);
+    for (k = 0 ; k < REP ; k++)
+      fft_execute(fft_analysis);
+    gpio_set_level(GPIO_OUTPUT, 0);
+    timer_get_counter_time_sec(TIMER_GROUP_0, TIMER_0, &end);
+    printf(" Real FFT size=%d runtime=%f ms\n", NFFT, 1000 * (end - start) / REP);
+
+    vTaskDelay(10 / portTICK_RATE_MS);
+
+    timer_get_counter_time_sec(TIMER_GROUP_0, TIMER_0, &start);
+    gpio_set_level(GPIO_OUTPUT, 1);
+    for (k = 0 ; k < REP ; k++)
+      fft_execute(fft_synthesis);
+    gpio_set_level(GPIO_OUTPUT, 0);
+    timer_get_counter_time_sec(TIMER_GROUP_0, TIMER_0, &end);
+    printf("Real iFFT size=%d runtime=%f ms\n", NFFT, 1000 * (end - start) / REP);
+
+    fft_destroy(fft_analysis);
+    fft_destroy(fft_synthesis);
+  }
+}
+
 
 void app_main()
 {
@@ -156,6 +220,7 @@ void app_main()
   while (1)
   {
     fft_test_task();
+    rfft_test_task();
     //fft8_test_task();
     //fft4_test_task();
     vTaskDelay(1000 / portTICK_RATE_MS);

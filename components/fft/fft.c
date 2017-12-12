@@ -43,6 +43,7 @@
 
 #define TWO_PI 6.28318530
 #define USE_SPLIT_RADIX 1
+#define LARGE_BASE_CASE 1
 
 fft_config_t *fft_init(int size, fft_type_t type, fft_direction_t direction, float *input, float *output)
 {
@@ -303,8 +304,15 @@ void fft_primitive(float *x, float *y, int n, int stride, float *twiddle_factors
   int k;
   float t;
 
+#if LARGE_BASE_CASE
+  // End condition, stop at n=8 to avoid one trivial recursion
+  if (n == 8)
+  {
+    fft8(x, stride, y, 2);
+    return;
+  }
+#else
   // End condition, stop at n=2 to avoid one trivial recursion
-  /*
   if (n == 2)
   {
     y[0] = x[0] + x[stride];
@@ -313,12 +321,7 @@ void fft_primitive(float *x, float *y, int n, int stride, float *twiddle_factors
     y[3] = x[1] - x[stride + 1];
     return;
   }
-  */
-  if (n == 8)
-  {
-    fft8(x, stride, y, 2);
-    return;
-  }
+#endif
 
   // Recursion -- Decimation In Time algorithm
   fft_primitive(x, y, n / 2, 2 * stride, twiddle_factors, 2 * tw_stride);             // even half
@@ -392,6 +395,7 @@ void split_radix_fft(float *x, float *y, int n, int stride, float *twiddle_facto
    */
   int k;
 
+#if LARGE_BASE_CASE
   // End condition, stop at n=2 to avoid one trivial recursion
   if (n == 8)
   {
@@ -403,6 +407,23 @@ void split_radix_fft(float *x, float *y, int n, int stride, float *twiddle_facto
     fft4(x, stride, y, 2);
     return;
   }
+#else
+  // End condition, stop at n=2 to avoid one trivial recursion
+  if (n == 2)
+  {
+    y[0] = x[0] + x[stride];
+    y[1] = x[1] + x[stride + 1];
+    y[2] = x[0] - x[stride];
+    y[3] = x[1] - x[stride + 1];
+    return;
+  }
+  else if (n == 1)
+  {
+    y[0] = x[0];
+    y[1] = x[1];
+    return;
+  }
+#endif
 
   // Recursion -- Decimation In Time algorithm
   split_radix_fft(x, y, n / 2, 2 * stride, twiddle_factors, 2 * tw_stride);
@@ -515,7 +536,7 @@ void ifft_primitive(float *input, float *output, int n, int stride, float *twidd
 
 }
 
-void fft8(float *input, int stride_in, float *output, int stride_out)
+inline void fft8(float *input, int stride_in, float *output, int stride_out)
 {
   /*
    * Unrolled implementation of FFT8 for a little more performance
@@ -643,7 +664,7 @@ void fft8(float *input, int stride_in, float *output, int stride_out)
 
 }
 
-void fft4(float *input, int stride_in, float *output, int stride_out)
+inline void fft4(float *input, int stride_in, float *output, int stride_out)
 {
   /*
    * Unrolled implementation of FFT4 for a little more performance
